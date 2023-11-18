@@ -59,11 +59,8 @@ jobs:
           node-version: '16'
           cache: 'yarn'
 
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
       - name: Duplicates check
-        run: yarn deduplicate
+        run: npx yarn-deduplicate --list --fail
 
   test:
     name: Test
@@ -128,9 +125,9 @@ jobs:
           severity: 'CRITICAL'
           exit-code: '1'
 
-  yarn-pass:
-    name: Yarn tests pass
-    needs: ['format', 'lint', 'test']
+  ts-pass:
+    name: TS tests pass
+    needs: ['format', 'lint', 'test', 'depcheck']
     runs-on: ubuntu-latest
     steps:
       - run: echo ok
@@ -144,7 +141,7 @@ jobs:
 
   all-pass:
     name: All tests pass 🚀
-    needs: ['yarn-pass', 'security-pass']
+    needs: ['ts-pass', 'security-pass']
     runs-on: ubuntu-latest
     steps:
       - run: echo ok
