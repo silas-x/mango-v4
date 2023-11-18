@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "bin/*",
+
     "programs/mango-v4",
-    "lib/*",
+
 ]
 
 [workspace.dependencies]
