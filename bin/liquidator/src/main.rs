@@ -67,6 +67,23 @@ impl From<JupiterVersionArg> for jupiter::Version {
     }
 }
 
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+enum TcsMode {
+    BorrowBuy,
+    SwapSellIntoBuy,
+    SwapCollateralIntoBuy,
+}
+
+impl From<TcsMode> for trigger_tcs::Mode {
+    fn from(a: TcsMode) -> Self {
+        match a {
+            TcsMode::BorrowBuy => trigger_tcs::Mode::BorrowBuyToken,
+            TcsMode::SwapSellIntoBuy => trigger_tcs::Mode::SwapSellIntoBuy,
+            TcsMode::SwapCollateralIntoBuy => trigger_tcs::Mode::SwapCollateralIntoBuy,
+        }
+    }
+}
+
 #[derive(Parser)]
 #[clap()]
 struct Cli {
@@ -120,6 +137,10 @@ struct Cli {
     /// profit margin at which to take tcs orders
     #[clap(long, env, default_value = "0.0005")]
     tcs_profit_fraction: f64,
+
+    /// control how tcs triggering provides buy tokens
+    #[clap(long, env, value_enum, default_value = "swap-sell-into-buy")]
+    tcs_mode: TcsMode,
 
     /// prioritize each transaction with this many microlamports/cu
     #[clap(long, env, default_value = "0")]
@@ -303,8 +324,7 @@ async fn main() -> anyhow::Result<()> {
         jupiter_version: cli.jupiter_version.into(),
         jupiter_slippage_bps: cli.rebalance_slippage_bps,
 
-        // TODO: configurable
-        mode: trigger_tcs::Mode::SwapSellIntoBuy,
+        mode: cli.tcs_mode.into(),
         min_buy_fraction: 0.7,
     };
 
@@ -499,11 +519,11 @@ async fn main() -> anyhow::Result<()> {
     let token_swap_info_job = tokio::spawn({
         // TODO: configurable interval
         let mut interval = tokio::time::interval(Duration::from_secs(60));
-        let mut min_delay = tokio::time::interval(Duration::from_secs(1));
+        let mut startup_wait = tokio::time::interval(Duration::from_secs(1));
         let shared_state = shared_state.clone();
         async move {
             loop {
-                min_delay.tick().await;
+                startup_wait.tick().await;
                 if !shared_state.read().unwrap().one_snapshot_done {
                     continue;
                 }
@@ -512,10 +532,11 @@ async fn main() -> anyhow::Result<()> {
                 let token_indexes = token_swap_info_updater
                     .mango_client()
                     .context
-                    .token_indexes_by_name
-                    .values()
+                    .tokens
+                    .keys()
                     .copied()
                     .collect_vec();
+                let mut min_delay = tokio::time::interval(Duration::from_secs(1));
                 for token_index in token_indexes {
                     min_delay.tick().await;
                     match token_swap_info_updater.update_one(token_index).await {
