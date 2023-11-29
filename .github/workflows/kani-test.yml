@@ -1,0 +1,13 @@
+name: Kani CI
+on:
+  workflow_dispatch:
+  push:
+jobs:
+  run-kani:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout your code.'
+        uses: actions/checkout@v4
+        
+      - name: Run Kani
+        uses: model-checking/kani-github-action@v1.0
